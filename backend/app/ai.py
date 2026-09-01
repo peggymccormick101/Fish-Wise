@@ -17,7 +17,11 @@ def get_client() -> anthropic.Anthropic:
                 "ANTHROPIC_API_KEY is not set. Copy backend/.env.example to "
                 "backend/.env and add your key."
             )
-        _client = anthropic.Anthropic(api_key=api_key)
+        default_headers = {}
+        workspace_id = os.environ.get("ANTHROPIC_WORKSPACE_ID")
+        if workspace_id:
+            default_headers["anthropic-workspace-id"] = workspace_id
+        _client = anthropic.Anthropic(api_key=api_key, default_headers=default_headers)
     return _client
 
 
