@@ -53,3 +53,25 @@ backend on port 8000 (see `vite.config.js`).
 - `GET /api/searches` — list saved searches
 - `GET /api/searches/{id}` — get a search's full tips
 - `DELETE /api/searches/{id}` — delete a saved search
+
+## Deployment (Render)
+
+The app deploys as a single service: a Docker image builds the React
+frontend, then FastAPI serves both the API (`/api/*`) and the built
+frontend (everything else) from one process.
+
+1. Push this repo to GitHub (already done if you're reading this from there).
+2. On [render.com](https://render.com), sign up / log in, then **New >
+   Blueprint**, and point it at this repo. Render reads `render.yaml`
+   automatically and creates the service.
+3. When prompted, enter your `ANTHROPIC_API_KEY` (and `ANTHROPIC_WORKSPACE_ID`
+   if your account requires one — see `backend/.env.example`) as the
+   service's environment variables. These are entered directly in Render's
+   dashboard, never committed to the repo.
+4. Deploy. Render builds the Docker image (`Dockerfile` at the repo root)
+   and gives you a public `https://fishwise-xxxx.onrender.com` URL.
+
+**Note on data:** the free tier's disk is ephemeral — the SQLite database
+(saved searches) resets on every redeploy. That's fine for personal/testing
+use; if persistence across deploys matters later, that would mean adding a
+Render persistent disk or switching to a hosted database.

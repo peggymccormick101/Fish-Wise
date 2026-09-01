@@ -1,0 +1,15 @@
+.git
+.gitignore
+README.md
+render.yaml
+
+backend/.venv
+backend/__pycache__
+backend/app/__pycache__
+backend/app/routers/__pycache__
+backend/*.db
+backend/.env
+**/*.pyc
+
+frontend/node_modules
+frontend/dist
