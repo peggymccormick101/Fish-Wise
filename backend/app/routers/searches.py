@@ -8,6 +8,23 @@ from app.database import get_db
 router = APIRouter(prefix="/api", tags=["searches"])
 
 
+def _build_search_context(search: models.Search) -> str:
+    lines = [
+        f"Water body: {search.water_body_normalized or search.water_body}",
+        f"Target species: {search.species}",
+        f"Season: {search.season}",
+        f"Summary: {search.summary or 'n/a'}",
+        f"Best conditions: {search.best_conditions or 'n/a'}",
+        "Recommended gear:",
+    ]
+    for g in search.gear_items:
+        lines.append(f"  - [{g.category}] {g.name}" + (f" — {g.notes}" if g.notes else ""))
+    lines.append("Techniques:")
+    for t in search.techniques:
+        lines.append(f"  - {t.title}: {t.description}")
+    return "\n".join(lines)
+
+
 def _handle_ai_errors(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
@@ -95,3 +112,21 @@ def delete_search(search_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Search not found")
     db.delete(search)
     db.commit()
+
+
+@router.post("/searches/{search_id}/ask", response_model=schemas.AskResponse)
+def ask_question(search_id: int, payload: schemas.AskRequest, db: Session = Depends(get_db)):
+    search = db.get(models.Search, search_id)
+    if not search:
+        raise HTTPException(status_code=404, detail="Search not found")
+
+    context = _build_search_context(search)
+    history = [{"role": m.role, "content": m.content} for m in search.messages]
+
+    answer = _handle_ai_errors(ai.answer_question, context, history, payload.question)
+
+    db.add(models.Message(search_id=search.id, role="user", content=payload.question))
+    db.add(models.Message(search_id=search.id, role="assistant", content=answer))
+    db.commit()
+
+    return schemas.AskResponse(answer=answer)

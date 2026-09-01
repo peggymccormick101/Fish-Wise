@@ -26,6 +26,10 @@ class Search(Base):
     gear_items = relationship(
         "GearItem", back_populates="search", cascade="all, delete-orphan"
     )
+    messages = relationship(
+        "Message", back_populates="search", cascade="all, delete-orphan",
+        order_by="Message.created_at",
+    )
 
 
 class Technique(Base):
@@ -50,3 +54,15 @@ class GearItem(Base):
     notes = Column(Text, nullable=True)
 
     search = relationship("Search", back_populates="gear_items")
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    search_id = Column(Integer, ForeignKey("searches.id"), nullable=False)
+    role = Column(String, nullable=False)  # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    search = relationship("Search", back_populates="messages")

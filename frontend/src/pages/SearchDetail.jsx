@@ -4,7 +4,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import TechniqueList from "../components/TechniqueList.jsx";
 import GearList from "../components/GearList.jsx";
-import { deleteSearch, getSearch } from "../api.js";
+import ChatBox from "../components/ChatBox.jsx";
+import { askQuestion, deleteSearch, getSearch } from "../api.js";
 
 export default function SearchDetail() {
   const { id } = useParams();
@@ -13,6 +14,7 @@ export default function SearchDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     getSearch(id)
@@ -31,6 +33,23 @@ export default function SearchDetail() {
     } catch (e) {
       setError(e.message);
       setDeleting(false);
+    }
+  }
+
+  async function handleAsk(question) {
+    setAsking(true);
+    setSearch((s) => ({
+      ...s,
+      messages: [...s.messages, { id: `tmp-${Date.now()}`, role: "user", content: question, created_at: new Date().toISOString() }],
+    }));
+    try {
+      await askQuestion(id, question);
+      const fresh = await getSearch(id);
+      setSearch(fresh);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setAsking(false);
     }
   }
 
@@ -75,6 +94,11 @@ export default function SearchDetail() {
       <section>
         <h2>Techniques</h2>
         <TechniqueList techniques={search.techniques} />
+      </section>
+
+      <section>
+        <h2>Ask FishWise</h2>
+        <ChatBox messages={search.messages} onAsk={handleAsk} asking={asking} />
       </section>
     </div>
   );

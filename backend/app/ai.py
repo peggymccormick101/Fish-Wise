@@ -148,3 +148,26 @@ def generate_fishing_tips(water_body: str, species: str, season: str) -> dict:
             return block.input
 
     raise RuntimeError("Claude did not return fishing tips.")
+
+
+def answer_question(search_context: str, history: list[dict], question: str) -> str:
+    client = get_client()
+
+    messages = [{"role": m["role"], "content": m["content"]} for m in history]
+    messages.append({"role": "user", "content": question})
+
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=1024,
+        system=(
+            "You are FishWise, an assistant helping an angler with a specific "
+            "fishing search. Here is everything known about it so far (the tips "
+            "you generated, and prior conversation context):\n\n" + search_context +
+            "\n\nAnswer the angler's questions clearly and practically. Keep "
+            "answers focused and concise unless detail is asked for."
+        ),
+        messages=messages,
+    )
+
+    text_parts = [b.text for b in response.content if b.type == "text"]
+    return "\n".join(text_parts).strip()

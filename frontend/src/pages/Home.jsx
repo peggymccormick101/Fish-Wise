@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import WaterBodySearchForm from "../components/WaterBodySearchForm.jsx";
 import { deleteSearch, listSearches } from "../api.js";
+import heroImg from "../fishwise.png";
 
 export default function Home() {
   const [searches, setSearches] = useState([]);
@@ -39,7 +40,14 @@ export default function Home() {
 
   return (
     <div className="home-page">
-      <WaterBodySearchForm onCreated={handleCreated} />
+      <div className="hero-section">
+        <img
+          src={heroImg}
+          alt="FishWise — find your fishing spot"
+          className="hero-illustration hero-photo"
+        />
+        <WaterBodySearchForm onCreated={handleCreated} />
+      </div>
       {error && <p className="error">{error}</p>}
 
       <section className="search-list-section">

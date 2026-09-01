@@ -44,3 +44,10 @@ export function getSearch(id) {
 export function deleteSearch(id) {
   return request(`/searches/${id}`, { method: "DELETE" });
 }
+
+export function askQuestion(id, question) {
+  return request(`/searches/${id}/ask`, {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
+}

@@ -49,6 +49,15 @@ class SearchListItem(BaseModel):
     created_at: datetime
 
 
+class MessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    role: str
+    content: str
+    created_at: datetime
+
+
 class SearchDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,3 +71,12 @@ class SearchDetail(BaseModel):
     best_conditions: Optional[str] = None
     techniques: list[TechniqueOut] = []
     gear_items: list[GearItemOut] = []
+    messages: list[MessageOut] = []
+
+
+class AskRequest(BaseModel):
+    question: str
+
+
+class AskResponse(BaseModel):
+    answer: str
