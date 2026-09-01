@@ -1,0 +1,146 @@
+import os
+from typing import Optional
+
+import anthropic
+
+MODEL = "claude-sonnet-5"
+
+_client: Optional[anthropic.Anthropic] = None
+
+
+def get_client() -> anthropic.Anthropic:
+    global _client
+    if _client is None:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY is not set. Copy backend/.env.example to "
+                "backend/.env and add your key."
+            )
+        _client = anthropic.Anthropic(api_key=api_key)
+    return _client
+
+
+LOOKUP_TOOL = {
+    "name": "submit_water_body",
+    "description": "Submit the identified water body and the fish species commonly found there.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "water_body_normalized": {
+                "type": "string",
+                "description": "A clear, specific identification of the water body, including state/region if known, e.g. 'Lake Travis, a reservoir on the Colorado River near Austin, TX'. If the input is ambiguous or not a real/specific water body, give your best interpretation and note the ambiguity.",
+            },
+            "species": {
+                "type": "array",
+                "description": "3-8 fish species commonly found and fished for in this water body, ordered by how commonly they're targeted. Common names only, e.g. 'Largemouth Bass'.",
+                "items": {"type": "string"},
+            },
+        },
+        "required": ["water_body_normalized", "species"],
+    },
+}
+
+
+def lookup_water_body(water_body: str) -> dict:
+    client = get_client()
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=1024,
+        system=(
+            "You are FishWise, an assistant that helps anglers identify a body "
+            "of water and the fish species commonly found there. Always respond "
+            "by calling the submit_water_body tool."
+        ),
+        tools=[LOOKUP_TOOL],
+        tool_choice={"type": "tool", "name": "submit_water_body"},
+        messages=[{"role": "user", "content": f"Body of water: {water_body}"}],
+    )
+
+    for block in response.content:
+        if block.type == "tool_use" and block.name == "submit_water_body":
+            return block.input
+
+    raise RuntimeError("Claude did not return a water body lookup result.")
+
+
+TIPS_TOOL = {
+    "name": "submit_fishing_tips",
+    "description": "Submit fishing tips: recommended gear/bait and techniques for a species, water body, and season.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "summary": {
+                "type": "string",
+                "description": "A short 2-4 sentence overview of how to approach fishing for this species in this water body during this season.",
+            },
+            "best_conditions": {
+                "type": "string",
+                "description": "Best time of day, weather, water temperature, and other conditions to fish for this species in this season.",
+            },
+            "gear": {
+                "type": "array",
+                "description": "Recommended hooks, bait/lures, line, and other gear.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "category": {
+                            "type": "string",
+                            "description": "e.g. hook, bait, lure, line, rod/reel, other",
+                        },
+                        "name": {"type": "string"},
+                        "notes": {
+                            "type": "string",
+                            "description": "Why this choice, sizing, color, or usage notes.",
+                        },
+                    },
+                    "required": ["category", "name"],
+                },
+            },
+            "techniques": {
+                "type": "array",
+                "description": "Ordered, concrete techniques/approaches to try.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "description": {"type": "string"},
+                    },
+                    "required": ["title", "description"],
+                },
+            },
+        },
+        "required": ["summary", "best_conditions", "gear", "techniques"],
+    },
+}
+
+
+def generate_fishing_tips(water_body: str, species: str, season: str) -> dict:
+    user_prompt = (
+        f"Water body: {water_body}\n"
+        f"Target species: {species}\n"
+        f"Season: {season}\n\n"
+        "Give practical, specific fishing advice for this species in this water "
+        "body during this season: recommended hooks/bait/lures/line, and concrete "
+        "techniques to try. Assume a beginner-to-intermediate angler."
+    )
+
+    client = get_client()
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=2048,
+        system=(
+            "You are FishWise, an assistant that gives anglers practical, "
+            "specific fishing advice. Always respond by calling the "
+            "submit_fishing_tips tool."
+        ),
+        tools=[TIPS_TOOL],
+        tool_choice={"type": "tool", "name": "submit_fishing_tips"},
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+
+    for block in response.content:
+        if block.type == "tool_use" and block.name == "submit_fishing_tips":
+            return block.input
+
+    raise RuntimeError("Claude did not return fishing tips.")
