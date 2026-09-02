@@ -150,6 +150,12 @@ button:disabled {
   margin: 0;
 }
 
+.conditions-now {
+  font-size: 13px;
+  color: var(--text);
+  margin: 4px 0 0;
+}
+
 .picker-label {
   display: block;
   font-size: 14px;

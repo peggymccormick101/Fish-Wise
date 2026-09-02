@@ -2,7 +2,7 @@ import anthropic
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app import ai, models, schemas, species
+from app import ai, location, models, schemas
 from app.database import get_db
 
 router = APIRouter(prefix="/api", tags=["searches"])
@@ -36,18 +36,24 @@ def _handle_ai_errors(fn, *args, **kwargs):
         )
     except anthropic.APIConnectionError as e:
         raise HTTPException(status_code=502, detail=f"Could not reach the Claude API: {e}")
-    except (species.WaterBodyNotFoundError, species.NoSpeciesFoundError) as e:
+    except location.WaterBodyNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except species.UpstreamServiceError as e:
+    except location.UpstreamServiceError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/waterbodies/lookup", response_model=schemas.WaterBodyLookupResponse)
 def lookup_water_body(payload: schemas.WaterBodyLookupRequest):
-    result = _handle_ai_errors(species.lookup_water_body, payload.water_body)
+    place = _handle_ai_errors(location.geocode_water_body, payload.water_body)
+    species = _handle_ai_errors(ai.lookup_species, place["display_name"])
+    # Conditions are a nice-to-have on top of the lookup, not something an
+    # Open-Meteo hiccup should turn into a 502 for the whole request.
+    conditions = location.get_conditions(place["lat"], place["lon"]) or {}
+
     return schemas.WaterBodyLookupResponse(
-        water_body_normalized=result["water_body_normalized"],
-        species=result["species"],
+        water_body_normalized=place["display_name"],
+        species=species,
+        **conditions,
     )
 
 

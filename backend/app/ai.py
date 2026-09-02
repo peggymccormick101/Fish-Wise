@@ -25,6 +25,50 @@ def get_client() -> anthropic.Anthropic:
     return _client
 
 
+LOOKUP_TOOL = {
+    "name": "submit_species",
+    "description": "Submit the fish species commonly found in a given water body.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "species": {
+                "type": "array",
+                "description": "3-8 fish species commonly found and fished for in this water body, ordered by how commonly they're targeted. Common names only, e.g. 'Largemouth Bass'.",
+                "items": {"type": "string"},
+            },
+        },
+        "required": ["species"],
+    },
+}
+
+
+def lookup_species(water_body_normalized: str) -> list[str]:
+    """Ask Claude which fish species are commonly found in a given water
+    body. water_body_normalized should already be a precise, geocoded
+    location string (see app.location.geocode_water_body) rather than
+    raw user input, so Claude isn't also guessing which real place the
+    user meant."""
+    client = get_client()
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=1024,
+        system=(
+            "You are FishWise, an assistant that helps anglers find out "
+            "which fish species are commonly found in a body of water. "
+            "Always respond by calling the submit_species tool."
+        ),
+        tools=[LOOKUP_TOOL],
+        tool_choice={"type": "tool", "name": "submit_species"},
+        messages=[{"role": "user", "content": f"Body of water: {water_body_normalized}"}],
+    )
+
+    for block in response.content:
+        if block.type == "tool_use" and block.name == "submit_species":
+            return block.input["species"]
+
+    raise RuntimeError("Claude did not return a species list.")
+
+
 TIPS_TOOL = {
     "name": "submit_fishing_tips",
     "description": "Submit fishing tips: recommended gear/bait and techniques for a species, water body, and season.",

@@ -81,6 +81,19 @@ export default function WaterBodySearchForm({ onCreated }) {
         <div className="lookup-result">
           <p className="water-body-confirmed">📍 {lookup.water_body_normalized}</p>
 
+          {(lookup.temperature_f != null || lookup.sunrise) && (
+            <p className="conditions-now">
+              {lookup.temperature_f != null && (
+                <span>🌡️ {Math.round(lookup.temperature_f)}°F</span>
+              )}
+              {lookup.wind_mph != null && (
+                <span> · 💨 {Math.round(lookup.wind_mph)} mph</span>
+              )}
+              {lookup.sunrise && <span> · 🌅 {lookup.sunrise}</span>}
+              {lookup.sunset && <span> · 🌇 {lookup.sunset}</span>}
+            </p>
+          )}
+
           <div className="species-picker">
             <span className="picker-label">What are you fishing for?</span>
             <div className="species-chips">

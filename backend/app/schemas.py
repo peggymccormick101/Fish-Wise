@@ -11,6 +11,10 @@ class WaterBodyLookupRequest(BaseModel):
 class WaterBodyLookupResponse(BaseModel):
     water_body_normalized: str
     species: list[str]
+    temperature_f: Optional[float] = None
+    wind_mph: Optional[float] = None
+    sunrise: Optional[str] = None
+    sunset: Optional[str] = None
 
 
 class SearchCreate(BaseModel):

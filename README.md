@@ -9,8 +9,9 @@ to try — powered by Claude.
 ## How it works
 
 1. Enter a body of water (e.g. "Lake Travis, TX").
-2. FishWise geocodes it and looks up fish species actually recorded nearby
-   in GBIF's real occurrence-record database (not a language model's guess).
+2. FishWise geocodes it (LocationIQ), asks Claude which species are commonly
+   found there, and looks up real current weather + today's sunrise/sunset
+   for that location (Open-Meteo).
 3. Pick a species and a season.
 4. Get a full set of tips: best conditions, recommended gear by category, and
    step-by-step techniques.
@@ -19,8 +20,8 @@ to try — powered by Claude.
 ## Stack
 
 - **Backend:** FastAPI + SQLAlchemy (SQLite) + the Claude API (`anthropic`
-  Python SDK) for tips, LocationIQ for geocoding, and GBIF (Global
-  Biodiversity Information Facility) for real species-occurrence data
+  Python SDK) for species/tips, LocationIQ for geocoding, and Open-Meteo for
+  current weather + sunrise/sunset
 - **Frontend:** React (Vite) + React Router
 
 ## Setup
@@ -37,7 +38,8 @@ cp .env.example .env   # then edit .env: set ANTHROPIC_API_KEY and LOCATIONIQ_AP
 
 `LOCATIONIQ_API_KEY` is a free key (5,000 requests/day, no card required) —
 sign up at [locationiq.com](https://locationiq.com). It's used to turn a
-water body name into coordinates; GBIF's own APIs need no key.
+water body name into coordinates; Open-Meteo (weather/sun times) needs no
+key of its own.
 
 The API runs at `http://localhost:8000` (docs at `/docs`). It creates
 `backend/fishwise.db` (SQLite) on first run.
@@ -55,7 +57,8 @@ backend on port 8000 (see `vite.config.js`).
 
 ## API
 
-- `POST /api/waterbodies/lookup` — identify a water body and suggest species
+- `POST /api/waterbodies/lookup` — identify a water body, suggest species,
+  and return current conditions (temperature, wind, sunrise/sunset) for it
 - `POST /api/searches` — generate and save fishing tips for a water
   body/species/season combo
 - `GET /api/searches` — list saved searches
