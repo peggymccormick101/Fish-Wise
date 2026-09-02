@@ -135,7 +135,10 @@ def _fetch_species_counts(lat: float, lon: float, radius_km: int, taxon_key: int
     data = _get(
         GBIF_OCCURRENCE_URL,
         {
-            "geoDistance": f"{lat},{lon},{radius_km}km",
+            # GBIF's format is "{distance}{unit},{lat},{lng}" — distance
+            # first, e.g. "100km,40,90". Confirmed against the GEO_DISTANCE
+            # javadoc in gbif/gbif-api's OccurrenceSearchParameter.java.
+            "geoDistance": f"{radius_km}km,{lat},{lon}",
             "taxonKey": taxon_key,
             "hasCoordinate": "true",
             "limit": _OCCURRENCE_LIMIT,
