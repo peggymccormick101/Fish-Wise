@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Optional
 
 import requests
@@ -22,6 +23,7 @@ _FALLBACK_ACTINOPTERYGII_KEY = 204
 _RADII_KM = [15, 40, 100, 250]
 _MAX_SPECIES = 8
 _OCCURRENCE_LIMIT = 300
+_MAX_RETRIES = 2
 
 _actinopterygii_key_cache: Optional[int] = None
 
@@ -40,14 +42,42 @@ class UpstreamServiceError(Exception):
 
 
 def _get(url: str, params: dict, timeout: int = 10) -> dict:
-    try:
-        response = requests.get(
-            url, params=params, headers={"User-Agent": USER_AGENT}, timeout=timeout
+    """GET with retry-with-backoff on 429 — the free Nominatim/GBIF
+    endpoints can rate-limit a cloud host's shared egress IP even for
+    low-volume, legitimate use."""
+    response = None
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            response = requests.get(
+                url, params=params, headers={"User-Agent": USER_AGENT}, timeout=timeout
+            )
+        except requests.RequestException as e:
+            raise UpstreamServiceError(
+                "Could not reach the location/species lookup service."
+            ) from e
+
+        if response.status_code != 429 or attempt == _MAX_RETRIES:
+            break
+        try:
+            delay = float(response.headers.get("Retry-After", ""))
+        except ValueError:
+            delay = 1.5 * (attempt + 1)
+        logger.warning("Rate-limited by %s, retrying in %.1fs", url, delay)
+        time.sleep(delay)
+
+    if response.status_code == 429:
+        raise UpstreamServiceError(
+            "The location lookup service is rate-limited right now. Please "
+            "wait a moment and try again."
         )
+    try:
         response.raise_for_status()
         return response.json()
-    except (requests.RequestException, ValueError) as e:
-        raise UpstreamServiceError(f"Request to {url} failed: {e}") from e
+    except (requests.HTTPError, ValueError) as e:
+        raise UpstreamServiceError(
+            "The location/species lookup service returned an unexpected "
+            f"response (status {response.status_code})."
+        ) from e
 
 
 def geocode_water_body(query: str) -> dict:
