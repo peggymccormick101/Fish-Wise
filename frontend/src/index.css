@@ -144,16 +144,35 @@ button:disabled {
   gap: 16px;
 }
 
-.water-body-confirmed {
-  font-weight: 600;
-  color: var(--text-h);
-  margin: 0;
+.location-info {
+  background: var(--accent-bg);
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.conditions-now {
-  font-size: 13px;
+.info-row {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.info-label {
+  flex-shrink: 0;
+  min-width: 92px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.info-value {
   color: var(--text);
-  margin: 4px 0 0;
+}
+.info-row:first-child .info-value {
+  color: var(--text-h);
+  font-weight: 600;
 }
 
 .picker-label {

@@ -3,6 +3,17 @@ import { createSearch, lookupWaterBody } from "../api.js";
 
 const SEASONS = ["Spring", "Summer", "Fall", "Winter"];
 
+// LocationIQ's display_name is ordered most-specific first, e.g.
+// "Old Hickory Lake, Mount Juliet, Wilson County, Middle Tennessee,
+// Tennessee, 37122, USA" — split it into a short name and the rest.
+function waterBodyName(displayName) {
+  return displayName.split(",")[0].trim();
+}
+
+function waterBodyLocation(displayName) {
+  return displayName.split(",").slice(1).join(",").trim();
+}
+
 function currentSeason() {
   const month = new Date().getMonth(); // 0-11
   if (month >= 2 && month <= 4) return "Spring";
@@ -79,20 +90,27 @@ export default function WaterBodySearchForm({ onCreated }) {
 
       {lookup && (
         <div className="lookup-result">
-          <p className="water-body-confirmed">📍 {lookup.water_body_normalized}</p>
-
-          {(lookup.temperature_f != null || lookup.sunrise) && (
-            <p className="conditions-now">
-              {lookup.temperature_f != null && (
-                <span>🌡️ {Math.round(lookup.temperature_f)}°F</span>
-              )}
-              {lookup.wind_mph != null && (
-                <span> · 💨 {Math.round(lookup.wind_mph)} mph</span>
-              )}
-              {lookup.sunrise && <span> · 🌅 {lookup.sunrise}</span>}
-              {lookup.sunset && <span> · 🌇 {lookup.sunset}</span>}
+          <div className="location-info">
+            <p className="info-row">
+              <span className="info-label">Body of water:</span>
+              <span className="info-value">{waterBodyName(lookup.water_body_normalized)}</span>
             </p>
-          )}
+            <p className="info-row">
+              <span className="info-label">Location:</span>
+              <span className="info-value">{waterBodyLocation(lookup.water_body_normalized)}</span>
+            </p>
+            {(lookup.temperature_f != null || lookup.sunrise) && (
+              <p className="info-row">
+                <span className="info-label">Weather:</span>
+                <span className="info-value">
+                  {lookup.temperature_f != null && <span>🌡️ {Math.round(lookup.temperature_f)}°F</span>}
+                  {lookup.wind_mph != null && <span> · 💨 {Math.round(lookup.wind_mph)} mph</span>}
+                  {lookup.sunrise && <span> · 🌅 {lookup.sunrise}</span>}
+                  {lookup.sunset && <span> · 🌇 {lookup.sunset}</span>}
+                </span>
+              </p>
+            )}
+          </div>
 
           <div className="species-picker">
             <span className="picker-label">What are you fishing for?</span>
