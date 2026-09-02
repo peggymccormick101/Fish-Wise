@@ -10,3 +10,5 @@ services:
         sync: false
       - key: ANTHROPIC_WORKSPACE_ID
         sync: false
+      - key: LOCATIONIQ_API_KEY
+        sync: false

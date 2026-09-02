@@ -9,7 +9,8 @@ to try — powered by Claude.
 ## How it works
 
 1. Enter a body of water (e.g. "Lake Travis, TX").
-2. FishWise identifies it and suggests fish species commonly found there.
+2. FishWise geocodes it and looks up fish species actually recorded nearby
+   in GBIF's real occurrence-record database (not a language model's guess).
 3. Pick a species and a season.
 4. Get a full set of tips: best conditions, recommended gear by category, and
    step-by-step techniques.
@@ -18,7 +19,8 @@ to try — powered by Claude.
 ## Stack
 
 - **Backend:** FastAPI + SQLAlchemy (SQLite) + the Claude API (`anthropic`
-  Python SDK)
+  Python SDK) for tips, LocationIQ for geocoding, and GBIF (Global
+  Biodiversity Information Facility) for real species-occurrence data
 - **Frontend:** React (Vite) + React Router
 
 ## Setup
@@ -29,9 +31,13 @@ to try — powered by Claude.
 cd backend
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-cp .env.example .env   # then edit .env and set ANTHROPIC_API_KEY
+cp .env.example .env   # then edit .env: set ANTHROPIC_API_KEY and LOCATIONIQ_API_KEY
 .venv/bin/uvicorn app.main:app --reload --port 8000
 ```
+
+`LOCATIONIQ_API_KEY` is a free key (5,000 requests/day, no card required) —
+sign up at [locationiq.com](https://locationiq.com). It's used to turn a
+water body name into coordinates; GBIF's own APIs need no key.
 
 The API runs at `http://localhost:8000` (docs at `/docs`). It creates
 `backend/fishwise.db` (SQLite) on first run.
@@ -66,10 +72,10 @@ frontend (everything else) from one process.
 2. On [render.com](https://render.com), sign up / log in, then **New >
    Blueprint**, and point it at this repo. Render reads `render.yaml`
    automatically and creates the service.
-3. When prompted, enter your `ANTHROPIC_API_KEY` (and `ANTHROPIC_WORKSPACE_ID`
-   if your account requires one — see `backend/.env.example`) as the
-   service's environment variables. These are entered directly in Render's
-   dashboard, never committed to the repo.
+3. When prompted, enter your `ANTHROPIC_API_KEY`, `LOCATIONIQ_API_KEY` (and
+   `ANTHROPIC_WORKSPACE_ID` if your account requires one — see
+   `backend/.env.example`) as the service's environment variables. These are
+   entered directly in Render's dashboard, never committed to the repo.
 4. Deploy. Render builds the Docker image (`Dockerfile` at the repo root)
    and gives you a public `https://fishwise-xxxx.onrender.com` URL.
 

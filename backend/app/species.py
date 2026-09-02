@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from typing import Optional
 
@@ -6,13 +7,15 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+# LocationIQ is a hosted, Nominatim-compatible geocoder (same OSM data, same
+# response shape) with a real per-key rate limit instead of Nominatim's
+# public demo endpoint, which throttles shared cloud-host IPs regardless of
+# how little any one app sends. Free tier: 5,000 requests/day, no card.
+LOCATIONIQ_URL = "https://us1.locationiq.com/v1/search"
 GBIF_MATCH_URL = "https://api.gbif.org/v1/species/match"
 GBIF_OCCURRENCE_URL = "https://api.gbif.org/v1/occurrence/search"
 GBIF_VERNACULAR_URL = "https://api.gbif.org/v1/species/{key}/vernacularNames"
 
-# Nominatim's usage policy requires an identifying User-Agent and caps usage
-# at ~1 request/sec, which a single lookup per user action stays well under.
 USER_AGENT = "FishWise/1.0 (hobby fishing-tips app)"
 
 # GBIF backbone taxon key for the class Actinopterygii (ray-finned fishes,
@@ -80,10 +83,22 @@ def _get(url: str, params: dict, timeout: int = 10) -> dict:
         ) from e
 
 
+def _get_locationiq_key() -> str:
+    api_key = os.environ.get("LOCATIONIQ_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "LOCATIONIQ_API_KEY is not set. Sign up for a free key at "
+            "https://locationiq.com (no card required) and add it to "
+            "backend/.env or your deployment's environment variables."
+        )
+    return api_key
+
+
 def geocode_water_body(query: str) -> dict:
     """Resolve free-text like 'Lake Travis, TX' to a normalized display name
-    and coordinates, via OpenStreetMap's Nominatim geocoder (free, no key)."""
-    results = _get(NOMINATIM_URL, {"q": query, "format": "jsonv2", "limit": 1})
+    and coordinates, via LocationIQ's geocoder."""
+    api_key = _get_locationiq_key()
+    results = _get(LOCATIONIQ_URL, {"key": api_key, "q": query, "format": "json", "limit": 1})
     if not results:
         raise WaterBodyNotFoundError(
             f"Could not find a location matching '{query}'. Try including a "
