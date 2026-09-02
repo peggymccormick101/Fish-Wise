@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # how little any one app sends. Free tier: 5,000 requests/day, no card.
 LOCATIONIQ_URL = "https://us1.locationiq.com/v1/search"
 GBIF_OCCURRENCE_URL = "https://api.gbif.org/v1/occurrence/search"
+GBIF_SPECIES_URL = "https://api.gbif.org/v1/species/{key}"
 GBIF_VERNACULAR_URL = "https://api.gbif.org/v1/species/{key}/vernacularNames"
 
 USER_AGENT = "FishWise/1.0 (hobby fishing-tips app)"
@@ -66,6 +67,7 @@ def _is_gamefish(scientific_name: str) -> bool:
 
 _RADII_KM = [15, 40, 100, 250]
 _MAX_SPECIES = 8
+_MAX_CANDIDATES_TO_VERIFY = 25
 _OCCURRENCE_LIMIT = 300
 _PAGES_PER_RADIUS = 3
 _MAX_RETRIES = 2
@@ -192,6 +194,26 @@ def _fetch_species_counts(lat: float, lon: float, radius_km: int) -> dict:
     return counts
 
 
+def _verify_is_fish(species_key: int) -> bool:
+    """Authoritatively confirm a species is a fish via its GBIF backbone
+    record (/v1/species/{key}), which is always fully populated — unlike
+    the class/order fields on individual occurrence records, which are
+    frequently missing and let a water snake and a turtle through with
+    the occurrence-record-only filtering above. On a lookup failure, don't
+    penalize the candidate for a network hiccup — let it through."""
+    try:
+        data = _get(GBIF_SPECIES_URL.format(key=species_key), {})
+    except UpstreamServiceError:
+        return True
+    if data.get("phylumKey") != _PHYLUM_CHORDATA_KEY:
+        return False
+    if data.get("class") in _NON_FISH_CLASSES:
+        return False
+    if data.get("order") in _NON_FISH_ORDERS:
+        return False
+    return True
+
+
 def _common_name(species_key: int, scientific_name: str) -> str:
     """Look up an English common name for a species; fall back to its
     scientific name if none is recorded in GBIF."""
@@ -225,7 +247,10 @@ def find_species_near(lat: float, lon: float) -> list[str]:
     by_count = sorted(counts.values(), key=lambda v: v["count"], reverse=True)
     gamefish = [e for e in by_count if _is_gamefish(e["name"])]
     others = [e for e in by_count if not _is_gamefish(e["name"])]
-    ranked = (gamefish + others)[:_MAX_SPECIES]
+    candidates = (gamefish + others)[:_MAX_CANDIDATES_TO_VERIFY]
+
+    verified = [e for e in candidates if _verify_is_fish(e["key"])]
+    ranked = verified[:_MAX_SPECIES]
     return [_common_name(entry["key"], entry["name"]) for entry in ranked]
 
 
