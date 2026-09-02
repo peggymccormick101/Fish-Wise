@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-from typing import Optional
 
 import requests
 
@@ -12,23 +11,30 @@ logger = logging.getLogger(__name__)
 # public demo endpoint, which throttles shared cloud-host IPs regardless of
 # how little any one app sends. Free tier: 5,000 requests/day, no card.
 LOCATIONIQ_URL = "https://us1.locationiq.com/v1/search"
-GBIF_MATCH_URL = "https://api.gbif.org/v1/species/match"
 GBIF_OCCURRENCE_URL = "https://api.gbif.org/v1/occurrence/search"
 GBIF_VERNACULAR_URL = "https://api.gbif.org/v1/species/{key}/vernacularNames"
 
 USER_AGENT = "FishWise/1.0 (hobby fishing-tips app)"
 
-# GBIF backbone taxon key for the class Actinopterygii (ray-finned fishes,
-# which covers virtually all freshwater and most inshore game species). Used
-# only if the live species/match lookup below fails.
-_FALLBACK_ACTINOPTERYGII_KEY = 204
+# GBIF backbone key for phylum Chordata. There's no single "fish" taxon key
+# to filter on: GBIF's current backbone split the old class Actinopterygii
+# (its key, 204, was deleted from the backbone in 2022) into ~40+ separate
+# orders attached directly to Chordata with no unifying class value at all.
+# Rather than maintain a long, backbone-version-fragile list of fish order
+# keys, query all of Chordata and exclude the small, stable set of non-fish
+# classes below — anything left (including records with no class at all,
+# which is how most bony-fish orders now appear) is fish.
+_PHYLUM_CHORDATA_KEY = 44
+_NON_FISH_CLASSES = {
+    "Mammalia", "Aves", "Reptilia", "Amphibia",
+    "Ascidiacea", "Thaliacea", "Appendicularia", "Leptocardii",
+}
 
 _RADII_KM = [15, 40, 100, 250]
 _MAX_SPECIES = 8
 _OCCURRENCE_LIMIT = 300
+_PAGES_PER_RADIUS = 3
 _MAX_RETRIES = 2
-
-_actinopterygii_key_cache: Optional[int] = None
 
 
 class WaterBodyNotFoundError(Exception):
@@ -112,46 +118,41 @@ def geocode_water_body(query: str) -> dict:
     }
 
 
-def _resolve_actinopterygii_key() -> int:
-    global _actinopterygii_key_cache
-    if _actinopterygii_key_cache is not None:
-        return _actinopterygii_key_cache
-    try:
-        data = _get(GBIF_MATCH_URL, {"name": "Actinopterygii", "rank": "CLASS"})
-        key = data.get("usageKey")
-        if key:
-            _actinopterygii_key_cache = int(key)
-            return _actinopterygii_key_cache
-    except UpstreamServiceError:
-        pass
-    logger.warning("GBIF species/match lookup failed; using fallback taxon key")
-    _actinopterygii_key_cache = _FALLBACK_ACTINOPTERYGII_KEY
-    return _actinopterygii_key_cache
-
-
-def _fetch_species_counts(lat: float, lon: float, radius_km: int, taxon_key: int) -> dict:
-    """Query GBIF occurrence records within radius_km of (lat, lon),
-    filtered to ray-finned fish, and tally how often each species appears."""
-    data = _get(
-        GBIF_OCCURRENCE_URL,
-        {
-            # GBIF's format is "{distance}{unit},{lat},{lng}" — distance
-            # first, e.g. "100km,40,90". Confirmed against the GEO_DISTANCE
-            # javadoc in gbif/gbif-api's OccurrenceSearchParameter.java.
-            "geoDistance": f"{radius_km}km,{lat},{lon}",
-            "taxonKey": taxon_key,
-            "hasCoordinate": "true",
-            "limit": _OCCURRENCE_LIMIT,
-        },
-    )
+def _fetch_species_counts(lat: float, lon: float, radius_km: int) -> dict:
+    """Query GBIF occurrence records within radius_km of (lat, lon) under
+    phylum Chordata, filter out the known non-fish classes, and tally how
+    often each remaining species appears. Pages through up to
+    _PAGES_PER_RADIUS batches, since bird/mammal observations often
+    dominate a raw Chordata sample and can crowd out fish in the first
+    page alone."""
     counts: dict[int, dict] = {}
-    for record in data.get("results", []):
-        species_key = record.get("speciesKey")
-        name = record.get("species")
-        if not species_key or not name:
-            continue
-        entry = counts.setdefault(species_key, {"key": species_key, "name": name, "count": 0})
-        entry["count"] += 1
+    for page in range(_PAGES_PER_RADIUS):
+        data = _get(
+            GBIF_OCCURRENCE_URL,
+            {
+                # GBIF's geoDistance format is "{lat},{lng},{distance}{unit}"
+                # — confirmed by live-testing against the real API (a
+                # documented javadoc example suggested distance-first, but
+                # that order returns "Argument is not a valid number").
+                "geoDistance": f"{lat},{lon},{radius_km}km",
+                "phylumKey": _PHYLUM_CHORDATA_KEY,
+                "hasCoordinate": "true",
+                "limit": _OCCURRENCE_LIMIT,
+                "offset": page * _OCCURRENCE_LIMIT,
+            },
+        )
+        results = data.get("results", [])
+        for record in results:
+            if record.get("class") in _NON_FISH_CLASSES:
+                continue
+            species_key = record.get("speciesKey")
+            name = record.get("species")
+            if not species_key or not name:
+                continue
+            entry = counts.setdefault(species_key, {"key": species_key, "name": name, "count": 0})
+            entry["count"] += 1
+        if len(counts) >= 3 or len(results) < _OCCURRENCE_LIMIT:
+            break
     return counts
 
 
@@ -174,10 +175,9 @@ def find_species_near(lat: float, lon: float) -> list[str]:
     GBIF occurrence data — not a language model's recall. Expands the
     search radius progressively until at least a few distinct species turn
     up, so sparser-data regions still get a useful result."""
-    taxon_key = _resolve_actinopterygii_key()
     counts: dict[int, dict] = {}
     for radius_km in _RADII_KM:
-        counts = _fetch_species_counts(lat, lon, radius_km, taxon_key)
+        counts = _fetch_species_counts(lat, lon, radius_km)
         if len(counts) >= 3:
             break
 
