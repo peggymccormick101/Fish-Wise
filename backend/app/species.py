@@ -29,6 +29,40 @@ _NON_FISH_CLASSES = {
     "Mammalia", "Aves", "Reptilia", "Amphibia",
     "Ascidiacea", "Thaliacea", "Appendicularia", "Leptocardii",
 }
+# Backup filter for records missing a "class" value (the same gap that lets
+# classless fish orders through — Squamata water snakes and Testudines
+# turtles have shown up in practice with no class tagged either). There are
+# far fewer non-fish tetrapod orders than fish orders, so this stays small.
+_NON_FISH_ORDERS = {
+    "Squamata", "Testudines", "Crocodylia",  # reptiles
+    "Anura", "Caudata", "Gymnophiona",  # amphibians
+}
+
+# A handful of common North American gamefish genera, used only to break
+# ties toward what an angler actually cares about. GBIF's raw occurrence
+# counts are dominated by natural-history/museum survey records of small,
+# heavily-vouchered stream fish (darters, dace, shiners); popular sportfish
+# like bass are comparatively under-collected by ichthyologists even where
+# they're the most commonly caught species, so ranking by raw count alone
+# can bury them. Any gamefish genus present is surfaced first; the rest are
+# still ranked by how often they were actually recorded.
+_GAMEFISH_GENERA = {
+    "micropterus",  # largemouth/smallmouth/spotted bass
+    "lepomis",  # bluegill, sunfish, redear
+    "pomoxis",  # crappie
+    "ictalurus", "ameiurus", "pylodictis",  # catfish, bullhead, flathead
+    "sander", "perca",  # walleye, yellow perch
+    "esox",  # pike, pickerel, muskellunge
+    "cyprinus",  # common carp
+    "salmo", "oncorhynchus", "salvelinus",  # trout, salmon, char
+    "morone",  # striped/white bass
+    "aplodinotus",  # freshwater drum
+}
+
+
+def _is_gamefish(scientific_name: str) -> bool:
+    genus = scientific_name.split(" ", 1)[0].lower()
+    return genus in _GAMEFISH_GENERA
 
 _RADII_KM = [15, 40, 100, 250]
 _MAX_SPECIES = 8
@@ -145,6 +179,8 @@ def _fetch_species_counts(lat: float, lon: float, radius_km: int) -> dict:
         for record in results:
             if record.get("class") in _NON_FISH_CLASSES:
                 continue
+            if record.get("order") in _NON_FISH_ORDERS:
+                continue
             species_key = record.get("speciesKey")
             name = record.get("species")
             if not species_key or not name:
@@ -164,6 +200,11 @@ def _common_name(species_key: int, scientific_name: str) -> str:
     except UpstreamServiceError:
         return scientific_name
     for entry in data.get("results", []):
+        # The language query param above isn't reliably honored server-side
+        # (German/Italian/Portuguese names have come back despite it), so
+        # always re-check the language client-side before using a name.
+        if entry.get("language") != "eng":
+            continue
         name = entry.get("vernacularName")
         if name:
             return name.title()
@@ -181,7 +222,10 @@ def find_species_near(lat: float, lon: float) -> list[str]:
         if len(counts) >= 3:
             break
 
-    ranked = sorted(counts.values(), key=lambda v: v["count"], reverse=True)[:_MAX_SPECIES]
+    by_count = sorted(counts.values(), key=lambda v: v["count"], reverse=True)
+    gamefish = [e for e in by_count if _is_gamefish(e["name"])]
+    others = [e for e in by_count if not _is_gamefish(e["name"])]
+    ranked = (gamefish + others)[:_MAX_SPECIES]
     return [_common_name(entry["key"], entry["name"]) for entry in ranked]
 
 
