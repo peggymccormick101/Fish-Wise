@@ -25,49 +25,6 @@ def get_client() -> anthropic.Anthropic:
     return _client
 
 
-LOOKUP_TOOL = {
-    "name": "submit_water_body",
-    "description": "Submit the identified water body and the fish species commonly found there.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "water_body_normalized": {
-                "type": "string",
-                "description": "A clear, specific identification of the water body, including state/region if known, e.g. 'Lake Travis, a reservoir on the Colorado River near Austin, TX'. If the input is ambiguous or not a real/specific water body, give your best interpretation and note the ambiguity.",
-            },
-            "species": {
-                "type": "array",
-                "description": "3-8 fish species commonly found and fished for in this water body, ordered by how commonly they're targeted. Common names only, e.g. 'Largemouth Bass'.",
-                "items": {"type": "string"},
-            },
-        },
-        "required": ["water_body_normalized", "species"],
-    },
-}
-
-
-def lookup_water_body(water_body: str) -> dict:
-    client = get_client()
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=1024,
-        system=(
-            "You are FishWise, an assistant that helps anglers identify a body "
-            "of water and the fish species commonly found there. Always respond "
-            "by calling the submit_water_body tool."
-        ),
-        tools=[LOOKUP_TOOL],
-        tool_choice={"type": "tool", "name": "submit_water_body"},
-        messages=[{"role": "user", "content": f"Body of water: {water_body}"}],
-    )
-
-    for block in response.content:
-        if block.type == "tool_use" and block.name == "submit_water_body":
-            return block.input
-
-    raise RuntimeError("Claude did not return a water body lookup result.")
-
-
 TIPS_TOOL = {
     "name": "submit_fishing_tips",
     "description": "Submit fishing tips: recommended gear/bait and techniques for a species, water body, and season.",
