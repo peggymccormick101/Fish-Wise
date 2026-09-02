@@ -1,5 +1,7 @@
 # FishWise
 
+Link to app: https://fishwise.onrender.com/
+
 Find a body of water, tell it what season it is, and get practical fishing
 advice: likely species, recommended hooks/bait/line, and concrete techniques
 to try — powered by Claude.
