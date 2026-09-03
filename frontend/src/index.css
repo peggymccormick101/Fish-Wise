@@ -189,6 +189,22 @@ button:disabled {
   gap: 8px;
 }
 
+.add-species-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.add-species-form input {
+  flex: 1;
+  max-width: 260px;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.add-species-form button {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
 .chip {
   background: var(--accent-bg);
   color: var(--text-h);

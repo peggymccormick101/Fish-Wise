@@ -25,6 +25,8 @@ function currentSeason() {
 export default function WaterBodySearchForm({ onCreated }) {
   const [waterBody, setWaterBody] = useState("");
   const [lookup, setLookup] = useState(null);
+  const [extraSpecies, setExtraSpecies] = useState([]);
+  const [newSpecies, setNewSpecies] = useState("");
   const [selectedSpecies, setSelectedSpecies] = useState("");
   const [season, setSeason] = useState(currentSeason());
   const [findingWater, setFindingWater] = useState(false);
@@ -37,6 +39,8 @@ export default function WaterBodySearchForm({ onCreated }) {
     setFindingWater(true);
     setError(null);
     setLookup(null);
+    setExtraSpecies([]);
+    setNewSpecies("");
     setSelectedSpecies("");
     try {
       const result = await lookupWaterBody(waterBody.trim());
@@ -46,6 +50,20 @@ export default function WaterBodySearchForm({ onCreated }) {
     } finally {
       setFindingWater(false);
     }
+  }
+
+  function handleAddSpecies(e) {
+    e.preventDefault();
+    const name = newSpecies.trim();
+    if (!name) return;
+    const alreadyListed = [...lookup.species, ...extraSpecies].some(
+      (s) => s.toLowerCase() === name.toLowerCase()
+    );
+    if (!alreadyListed) {
+      setExtraSpecies((prev) => [...prev, name]);
+    }
+    setSelectedSpecies(name);
+    setNewSpecies("");
   }
 
   async function handleGetTips() {
@@ -115,7 +133,7 @@ export default function WaterBodySearchForm({ onCreated }) {
           <div className="species-picker">
             <span className="picker-label">What are you fishing for?</span>
             <div className="species-chips">
-              {lookup.species.map((s) => (
+              {[...lookup.species, ...extraSpecies].map((s) => (
                 <button
                   type="button"
                   key={s}
@@ -126,6 +144,17 @@ export default function WaterBodySearchForm({ onCreated }) {
                 </button>
               ))}
             </div>
+            <form className="add-species-form" onSubmit={handleAddSpecies}>
+              <input
+                type="text"
+                placeholder="Don't see it? Add your own"
+                value={newSpecies}
+                onChange={(e) => setNewSpecies(e.target.value)}
+              />
+              <button type="submit" disabled={!newSpecies.trim()}>
+                Add
+              </button>
+            </form>
           </div>
 
           <div className="season-picker">
