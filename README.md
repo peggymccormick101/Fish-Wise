@@ -10,11 +10,13 @@ to try — powered by Claude.
 
 1. Enter a body of water (e.g. "Lake Travis, TX").
 2. FishWise geocodes it (LocationIQ), asks Claude which species are commonly
-   found there, and looks up real current weather + today's sunrise/sunset
-   for that location (Open-Meteo).
-3. Pick a species and a season.
-4. Get a full set of tips: best conditions, recommended gear by category, and
-   step-by-step techniques.
+   found there — Claude uses web search to check real, current sources
+   (state wildlife agency stocking/survey pages, local fishing reports)
+   rather than answering from memory alone — and looks up real current
+   weather + today's sunrise/sunset for that location (Open-Meteo).
+3. Pick a species, or add your own if the suggested list misses one.
+4. Pick a season, then get a full set of tips: best conditions, recommended
+   gear by category, and step-by-step techniques.
 5. Past searches are saved so you can revisit or delete them later.
 
 ## Stack

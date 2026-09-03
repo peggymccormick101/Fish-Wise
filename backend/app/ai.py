@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Optional
 
@@ -25,20 +26,17 @@ def get_client() -> anthropic.Anthropic:
     return _client
 
 
-LOOKUP_TOOL = {
-    "name": "submit_species",
-    "description": "Submit the fish species commonly found in a given water body.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "species": {
-                "type": "array",
-                "description": "3-8 fish species commonly found and fished for in this water body, ordered by how commonly they're targeted. Common names only, e.g. 'Largemouth Bass'.",
-                "items": {"type": "string"},
-            },
+LOOKUP_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "species": {
+            "type": "array",
+            "description": "3-8 fish species commonly found and fished for in this water body, ordered by how commonly they're targeted. Common names only, e.g. 'Largemouth Bass'.",
+            "items": {"type": "string"},
         },
-        "required": ["species"],
     },
+    "required": ["species"],
+    "additionalProperties": False,
 }
 
 
@@ -47,26 +45,37 @@ def lookup_species(water_body_normalized: str) -> list[str]:
     body. water_body_normalized should already be a precise, geocoded
     location string (see app.location.geocode_water_body) rather than
     raw user input, so Claude isn't also guessing which real place the
-    user meant."""
+    user meant.
+
+    Claude is given a web search tool and told to ground its answer in
+    it (state wildlife agency stocking/survey pages, fishing reports)
+    rather than answering from memory alone, since guesses from training
+    data alone are frequently wrong for smaller or less-documented water
+    bodies."""
     client = get_client()
     response = client.messages.create(
         model=MODEL,
-        max_tokens=1024,
+        max_tokens=2048,
         system=(
             "You are FishWise, an assistant that helps anglers find out "
             "which fish species are commonly found in a body of water. "
-            "Always respond by calling the submit_species tool."
+            "Before answering, use the web_search tool to check current, "
+            "specific information about this exact body of water (state "
+            "wildlife/fish & game agency stocking or survey pages, local "
+            "fishing reports) rather than relying only on general "
+            "knowledge. If search turns up nothing specific, fall back to "
+            "your best general knowledge for that region."
         ),
-        tools=[LOOKUP_TOOL],
-        tool_choice={"type": "tool", "name": "submit_species"},
+        tools=[{"type": "web_search_20260209", "name": "web_search", "max_uses": 3}],
+        output_config={"format": {"type": "json_schema", "schema": LOOKUP_OUTPUT_SCHEMA}},
         messages=[{"role": "user", "content": f"Body of water: {water_body_normalized}"}],
     )
 
-    for block in response.content:
-        if block.type == "tool_use" and block.name == "submit_species":
-            return block.input["species"]
-
-    raise RuntimeError("Claude did not return a species list.")
+    text_blocks = [b.text for b in response.content if b.type == "text"]
+    if not text_blocks:
+        raise RuntimeError("Claude did not return a species list.")
+    data = json.loads(text_blocks[-1])
+    return data["species"]
 
 
 TIPS_TOOL = {
